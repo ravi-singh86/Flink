@@ -21,30 +21,30 @@ public class RulePipeline {
     public static void main(String[] args) throws Exception {
 
     
-		
-		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		DataStream<String>  ruleStream = env.socketTextStream("localhost",9991);
-		DataStream<Integer> dataStream = env.socketTextStream("localhost",9992)
-											.map(new MapFunction<String, Integer>(){
-												@Override
-												public Integer map(String value) throws Exception {
-													return Integer.parseInt(value);
-												}
-											});
+        DataStream<String>  ruleStream = env.socketTextStream("localhost",9991);
+        DataStream<Integer> dataStream = env.socketTextStream("localhost",9992)
+                                            .map(new MapFunction<String, Integer>(){
+                                                @Override
+                                                public Integer map(String value) throws Exception {
+                                                    return Integer.parseInt(value);
+                                                }
+                                            });
 
-		MapStateDescriptor<String, String> ruleStateDescriptor = new MapStateDescriptor<>(
-			"RulesBroadcastState",
-			BasicTypeInfo.STRING_TYPE_INFO,
-			BasicTypeInfo.STRING_TYPE_INFO
-			);
-
-
-		BroadcastStream<String> ruleBroadcastStream = ruleStream.broadcast(ruleStateDescriptor);
+        MapStateDescriptor<String, String> ruleStateDescriptor = new MapStateDescriptor<>(
+            "RulesBroadcastState",
+            BasicTypeInfo.STRING_TYPE_INFO,
+            BasicTypeInfo.STRING_TYPE_INFO
+            );
 
 
-		DataStream<String> output = dataStream.connect(ruleBroadcastStream)
-											  .process(new RuleEvaluator());
+        BroadcastStream<String> ruleBroadcastStream = ruleStream.broadcast(ruleStateDescriptor);
+
+
+        DataStream<String> output = dataStream.connect(ruleBroadcastStream)
+                                              .process(new RuleEvaluator());
 
 
         
@@ -52,23 +52,7 @@ public class RulePipeline {
         output.writeAsText("test.txt");
 
         env.execute("WindowRuleMatching");
-		
-
-		/*
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-        DataStream<Tuple2<String, Integer>> dataStream = env
-                .socketTextStream("localhost", 9999)
-                .flatMap(new Splitter())
-                .keyBy(value -> value.f0)
-				//.window(TumblingProcessingTimeWindows.of(Time.seconds(5)))
-                .sum(1);
-
-        dataStream.writeAsText("test.txt");
-
-        env.execute("Window WordCount");
-		*/
-
+        
     }
 
     public static class Splitter implements FlatMapFunction<String, Tuple2<String, Integer>> {
