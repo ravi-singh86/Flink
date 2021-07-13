@@ -15,6 +15,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.functions.MapFunction;
 
 import test.RuleEvaluator;
+import test.Rule;
 
 public class RulePipeline {
 
@@ -24,7 +25,17 @@ public class RulePipeline {
         
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        DataStream<String>  ruleStream = env.socketTextStream("localhost",9991);
+        //DataStream<String>  ruleStream = env.socketTextStream("localhost",9991);
+		
+        DataStream<Rule>  ruleStream = env.socketTextStream("localhost",9991)
+											.map(new RuleParser());
+
+    
+		DataStream<Integer> dataStream = env.socketTextStream("localhost",9992)
+                                            .map(new DataParser());
+
+
+		/*
         DataStream<Integer> dataStream = env.socketTextStream("localhost",9992)
                                             .map(new MapFunction<String, Integer>(){
                                                 @Override
@@ -32,15 +43,16 @@ public class RulePipeline {
                                                     return Integer.parseInt(value);
                                                 }
                                             });
+		*/
 
-        MapStateDescriptor<String, String> ruleStateDescriptor = new MapStateDescriptor<>(
+        MapStateDescriptor<String, Rule> ruleStateDescriptor = new MapStateDescriptor<>(
             "RulesBroadcastState",
             BasicTypeInfo.STRING_TYPE_INFO,
-            BasicTypeInfo.STRING_TYPE_INFO
-            );
+            TypeInformation.of(new TypeHint<Rule>() {}));
 
 
-        BroadcastStream<String> ruleBroadcastStream = ruleStream.broadcast(ruleStateDescriptor);
+        //BroadcastStream<String> ruleBroadcastStream = ruleStream.broadcast(ruleStateDescriptor);
+        BroadcastStream<Rule> ruleBroadcastStream = ruleStream.broadcast(ruleStateDescriptor);
 
 
         DataStream<String> output = dataStream.connect(ruleBroadcastStream)
@@ -54,6 +66,27 @@ public class RulePipeline {
         env.execute("WindowRuleMatching");
         
     }
+    
+	public static class DataParser implements MapFunction<String, Integer> {
+        
+		@Override
+        public Integer map(String value) throws Exception {
+			return Integer.parseInt(value);
+        }
+    }
+
+    public static class RuleParser implements MapFunction<String, Rule> {
+		private String[] tokens;
+        
+		@Override
+        public Rule map(String value) throws Exception {
+			tokens = value.split("-");
+			return new Rule(Integer.parseInt(tokens[0]),
+						    Integer.parseInt(tokens[1]),
+							value);
+        }
+    }
+
 
     public static class Splitter implements FlatMapFunction<String, Tuple2<String, Integer>> {
         @Override
